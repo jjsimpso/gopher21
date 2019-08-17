@@ -1,0 +1,12 @@
+* Error check search requests when corpus list is null or not found
+* Improve main.rkt command line argument processing.
+* Fix http links
+* Differentiate between text and binary files when sending them
+* Convenience functions to build dispatch table
+* Support for more than just lists in the dispatch table
+
+Corpus specific:
+* Update quoted phrase search to use horspool search
+* Better word filtering. Add stop words.
+* Better scoring of search results.
+* Add wildcard searches

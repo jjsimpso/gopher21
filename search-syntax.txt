@@ -1,0 +1,27 @@
+CORPUS SEARCH SYNTAX
+--------------------
+
+The search query syntax is a work in progress, but mostly follows
+established text/web search conventions.
+
+Search is based on matching the terms in the query string with the
+contents of text files in the corpus. Relevance is determined by
+ranking the number of search term occurrences, or 'hits', in each
+file. The file with the most hits will appear at the top of the
+results list. When multiple search terms are present in the query
+string, the ranking is based on the term with the least number of
+hits.
+
+If multiple terms are present in the query string, there is an
+implicit logical AND between each term. A file will only match the
+string if it has hits for all of the terms.
+
+By default a search term will match any occurrence of a word that
+starts with the term. For example, a search for cat will match the
+words cat, cats, catlike, cateye, cattle, and so on. If only exact
+matches are desired, that can be accomplished by putting quotes around
+the term. If quotes are placed around multiple words -- a phrase --
+instead of a single word, the algorithm will match the exact
+phrase. However, the current implementation is very slow for this type
+of search. The gopher client will disconnect before most searches of
+this type will complete.
