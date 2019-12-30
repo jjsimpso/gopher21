@@ -12,12 +12,16 @@ Gopher21 is a gopher server written in Racket. It aims for compatibility with st
 
 ## Requirements
 
-* Racket 6.11 or greater. Currently only tested on 6.11 but it should work with newer versions.
-* Should run on Linux or Windows but only tested on Linux so far.
+* Racket 7.5 or greater.
+* #lang magic, install with `raco pkg install https://github.com/jjsimpso/magic`.
+* Should run on Linux, Windows, or MacOS but only tested on Linux so far.
 
 ## Building from source
 
 Just type 'make'. See the Makefile for sample commands to build a corpus. Run the 'main' executable to see command line arguments.
 
+## Full Text Search
+
+See seach-syntax.txt for documentation on the query syntax, which is still evolving.
 
 More detailed documentation coming soon.

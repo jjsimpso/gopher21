@@ -6,10 +6,13 @@
 (require "corpus.rkt")
 (require "gopher.rkt")
 
+(define gopher21-version "0.5.1")
+
 (define server-root (make-parameter "./"))
 (define server-port (make-parameter 70))
 (define search-tree-path (make-parameter #f))
 (define disk-cache-path (make-parameter #f))
+(define print-version (make-parameter #f))
 
 (define arg-list
   (command-line
@@ -20,6 +23,9 @@
    [("-s") root port
            "Launch the server on <port>, serving from <root>.\n     <arg-list> is a list of the form <corpus name>:<corpus file>"
            (server-root root) (server-port (string->number port))]
+   [("-v")
+    "Print version number"
+    (print-version #t)]
    
    #:once-each
    [("-d") cache-path 
@@ -43,6 +49,8 @@
           (printf "Invalid corpus arg ~a, format is: <corpus name>:<corpus path>~n" arg)))))
 
 (cond
+  [(print-version)
+   (printf "Version ~a~n" gopher21-version)]
   [(search-tree-path)
    (printf "Creating corpus from contents of: ")
    (for ([dir arg-list])
