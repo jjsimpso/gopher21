@@ -93,7 +93,9 @@
              [resource 
               (cond
                 [(string-prefix? selector "SEARCH:") (parse-search-request request)]
-                [(= (string-length selector) 0) (root-dir-path)]
+                [(or (= (string-length selector) 0)
+                     (string=? selector "/"))
+                 (root-dir-path)]
                 [(absolute-path? selector) (simplify-path (build-path (root-dir-path) (substring selector 1)))]
                 [else (simplify-path (build-path (root-dir-path) selector))])])
         
