@@ -17,7 +17,6 @@
 (provide load-corpus)
 (provide corpus-get-keys)
 (provide create-disk-cached-tree)
-(provide lookup-word-sorted)
 (provide query-corpus)
 (provide query-corpus-multi)
 (provide update-datastore-path!)
@@ -130,18 +129,30 @@
     (close-input-port in)
     (deserialize data)))
 
+;; retrieve a hash table of corpus matches for 'word' from the search tree
+;; use force-copy to ensure that the hash table returned is a copy
+(define (lookup-word-raw st word #:force-copy [copy-flag #f])
+  (define cache-path (search-tree-node-datastore-path st))
+  (define node (trie-lookup (string->list (string-downcase word))
+                            (search-tree-trie st)))
+
+  ;; the trie will either return a hash table or a file offset to a hash table
+  ;; read the hash table from the cache file if necessary
+  (cond
+    [(not node) #f]
+    [cache-path (read-hash-from-disk cache-path node)]
+    [else
+     (if copy-flag
+         (hash-copy node)
+         node)]))
+
 ;; lookup the word in the trie
-;; the trie will either return a hash table or a file offset to a hash table
+;; lookup-word-raw returns a hash table of results, using integer file indexes as keys
 ;; convert the hash table into a list of results, with the file index replaced with the file's path 
 ;; returns a list of (path . num-hits) or '() if no matches
 (define (lookup-word st word)
-  (define cache-path (search-tree-node-datastore-path st))
-  (define node (trie-lookup (string->list (string-downcase word)) 
-                            (search-tree-trie st)))
-  (define ht (cond
-               [(not node) #f]
-               [cache-path (read-hash-from-disk cache-path node)]
-               [else node]))
+  (define ht (lookup-word-raw st word))
+
   (if ht
       (hash-map ht
                 (lambda (key value)
@@ -161,20 +172,16 @@
 ;; matches trie node's subtree as well
 ;; returns a list of (path . num-hits) or '() if no matches
 (define (lookup-word-plus-suffixes st word)
-  (define key (string->list (string-downcase word)))
-  (define cache-path (search-tree-node-datastore-path st))
-  (define node (trie-lookup key 
-                            (search-tree-trie st)))
-  (define ht (cond
-               [(not node) #f]
-               [cache-path (read-hash-from-disk cache-path node)]
-               ;; else copy the hash table so we can do a mutable update to merge the results from suffixes
-               [else (hash-copy node)]))
+  ;; need a copy of the hash table so we can do a mutable update to merge the results from suffixes
+  (define ht (lookup-word-raw st word #:force-copy #t))
 
   ;; only match suffixes if the original word is in the trie.
   ;; may want to change this behavior but it doesn't seem right to treat
   ;; a search for "foob" as a search for "foob*" even if "foob" isn't in the corpus.
   (when ht  
+    (define key (string->list (string-downcase word)))
+    (define cache-path (search-tree-node-datastore-path st))
+
     (for ([suffix (trie-get-sub-keys (search-tree-trie st) key #t)])
       (let* ([nd (trie-lookup (append key (string->list suffix))
                               (search-tree-trie st))]
