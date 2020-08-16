@@ -146,6 +146,29 @@
          (hash-copy node)
          node)]))
 
+;; retrieve matches from trie node's subtree as well
+(define (lookup-word-plus-suffixes-raw st word)
+  ;; need a copy of the hash table so we can do a mutable update to merge the results from suffixes
+  (define ht (lookup-word-raw st word #:force-copy #t))
+
+  ;; only match suffixes if the original word is in the trie.
+  ;; may want to change this behavior but it doesn't seem right to treat
+  ;; a search for "foob" as a search for "foob*" even if "foob" isn't in the corpus.
+  (when ht
+    (define key (string->list (string-downcase word)))
+    (define cache-path (search-tree-node-datastore-path st))
+    
+    (for ([suffix (trie-get-sub-keys (search-tree-trie st) key #t)])
+      (let* ([nd (trie-lookup (append key (string->list suffix))
+                              (search-tree-trie st))]
+             [node-hash (if (hash? nd) 
+                            nd
+                            (read-hash-from-disk cache-path nd))])
+        (when node-hash 
+          (hash-union! ht node-hash #:combine/key (lambda (k v1 v2) (+ v1 v2)))))))
+
+  ht)
+
 ;; lookup the word in the trie
 ;; lookup-word-raw returns a hash table of results, using integer file indexes as keys
 ;; convert the hash table into a list of results, with the file index replaced with the file's path 
@@ -172,24 +195,7 @@
 ;; matches trie node's subtree as well
 ;; returns a list of (path . num-hits) or '() if no matches
 (define (lookup-word-plus-suffixes st word)
-  ;; need a copy of the hash table so we can do a mutable update to merge the results from suffixes
-  (define ht (lookup-word-raw st word #:force-copy #t))
-
-  ;; only match suffixes if the original word is in the trie.
-  ;; may want to change this behavior but it doesn't seem right to treat
-  ;; a search for "foob" as a search for "foob*" even if "foob" isn't in the corpus.
-  (when ht  
-    (define key (string->list (string-downcase word)))
-    (define cache-path (search-tree-node-datastore-path st))
-
-    (for ([suffix (trie-get-sub-keys (search-tree-trie st) key #t)])
-      (let* ([nd (trie-lookup (append key (string->list suffix))
-                              (search-tree-trie st))]
-             [node-hash (if (hash? nd) 
-                            nd
-                            (read-hash-from-disk cache-path nd))])
-        (when node-hash 
-          (hash-union! ht node-hash #:combine/key (lambda (k v1 v2) (+ v1 v2)))))))
+  (define ht (lookup-word-plus-suffixes-raw st word))
   
   (if ht
       (hash-map ht
