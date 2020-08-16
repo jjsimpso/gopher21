@@ -39,11 +39,11 @@
 ; an assoc list (key is the name used to reference the corpus in querys, value is corpus search-tree object)
 (define corpus-list '())
 
-(define (gopher-add-corpus name path)
+(define (gopher-add-corpus name path root-path)
   (with-handlers ([exn:fail? (lambda (v) 
                                (log-gopher-warning "Error loading corpus ~a" path)
                                #f)])
-    (set! corpus-list (cons (cons name (load-corpus path))
+    (set! corpus-list (cons (cons name (load-corpus path root-path))
                             corpus-list))))
 
 (define (gopher-serve-map root-dir port-no)

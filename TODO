@@ -1,4 +1,5 @@
 * Error check search requests when corpus list is null or not found
+* Cache or memoize file type determination.
 * Improve main.rkt command line argument processing.
 * Fix http links
 * Differentiate between text and binary files when sending them

@@ -7,6 +7,7 @@
 (require racket/fasl)
 (require racket/hash)
 (require racket/set)
+(require racket/path)
 
 (require "trie.rkt")
 (require "file-search.rkt")
@@ -31,16 +32,23 @@
 (define-serializable-struct search-tree
   ([files #:mutable] ; a hash table mapping integer keys to file names
    [trie #:mutable]  ; the root trie node
-   [node-datastore-path #:mutable])) ; false if all the trie's data is stored in memory
+   [node-datastore-path #:mutable] ; false if all the trie's data is stored in memory
+   [root-path #:mutable])) ; root directory where text is located
   ;#:transparent)
 
 (define (create-search-tree)
-  (search-tree (make-hash) (trie-new) #f))
+  (search-tree (make-hash) (trie-new) #f (string->path "/")))
 
 (define (create-new-value file-index)
   (define ht (make-hash))
   (hash-set! ht file-index 1)
   ht)
+
+;; takes a file index and returns the absolute path to the file
+(define (search-tree-file-absolute-path file-index st)
+  (build-path
+   (search-tree-root-path st)
+   (hash-ref (search-tree-files st) file-index)))
 
 ;; adds a new key to the search tree
 (define (insert-new-key key file-index trie)
@@ -108,9 +116,11 @@
   
   (for ([p (in-directory path)]
         [i 100000])
-    ; save the path in the search tree's list of files at index 'i'
-    (hash-set! files i p)
-    (unless (directory-exists? p) (add-file-to-search-tree p i st))))
+    (unless (directory-exists? p)
+      ; add each file's relative path to the search tree's list of files, using 'i' as the key
+      (define relpath (find-relative-path path p))
+      (hash-set! files i relpath)
+      (add-file-to-search-tree p i st))))
 
 (define (read-hash-from-disk path offset)
   ; with-input-from-file won't let me set the file position for some reason
@@ -125,7 +135,6 @@
 ;; convert the hash table into a list of results, with the file index replaced with the file's path 
 ;; returns a list of (path . num-hits) or '() if no matches
 (define (lookup-word st word)
-  (define files (search-tree-files st))
   (define cache-path (search-tree-node-datastore-path st))
   (define node (trie-lookup (string->list (string-downcase word)) 
                             (search-tree-trie st)))
@@ -136,7 +145,7 @@
   (if ht
       (hash-map ht
                 (lambda (key value)
-                  (cons (hash-ref files key) value)))
+                  (cons (search-tree-file-absolute-path key st) value)))
       empty))
 
 ;; lookup-word returns a list of (key . value)
@@ -153,7 +162,6 @@
 ;; returns a list of (path . num-hits) or '() if no matches
 (define (lookup-word-plus-suffixes st word)
   (define key (string->list (string-downcase word)))
-  (define files (search-tree-files st))
   (define cache-path (search-tree-node-datastore-path st))
   (define node (trie-lookup key 
                             (search-tree-trie st)))
@@ -179,7 +187,7 @@
   (if ht
       (hash-map ht
                 (lambda (key value)
-                  (cons (hash-ref files key) value)))
+                  (cons (search-tree-file-absolute-path key st) value)))
       empty))
 
 ;; matches the quoted phrase exactly
@@ -275,10 +283,11 @@
      >
      #:key cdr)))
 
-(define (build-corpus dir-list)
+;; dir is the path to the root directory containing the corpus of text files
+(define (build-corpus dir)
   (define st (create-search-tree))
-  (for ([dir dir-list])
-    (add-directory-to-search-tree dir st))
+  (set-search-tree-root-path! st dir)
+  (add-directory-to-search-tree dir st)
   st)
 
 (define (corpus-get-keys st)
@@ -296,11 +305,13 @@
   (call-with-output-file path
     (lambda (out) (write (serialize st) out))))
 
-(define (load-corpus path)
+(define (load-corpus corpus-file-path corpus-root-path)
   (define st
-    (call-with-input-file path
+    (call-with-input-file corpus-file-path
       (lambda (in) (deserialize (read in)))))
 
+  (set-search-tree-root-path! st corpus-root-path)
+  
   ; Run the garbage collector twice to keep overall memory usage low.
   ; The deserialize will allocate a lot of memory.
   ; Twice is needed because the collector doesn't unmap pages unless
@@ -312,7 +323,7 @@
     (unless (file-exists? (search-tree-node-datastore-path st))
       ; if the datastore file doesn't exist, perhaps it was moved.
       ; update the datastore path to the same directory as the search tree
-      (define-values (base name dir?) (split-path path))
+      (define-values (base name dir?) (split-path corpus-file-path))
       (define-values (base2 name2 dir2?) (split-path (search-tree-node-datastore-path st)))
       (when (file-exists? (build-path base name2))
         (update-datastore-path! st (build-path base name2)))))
@@ -337,7 +348,8 @@
   ; return a new search tree with a disk cached trie
   (search-tree (hash-copy (search-tree-files st)) 
                disk-trie
-               path))
+               path
+               (search-tree-root-path st)))
 
 (define (update-datastore-path! st path)
   (if (file-exists? path)

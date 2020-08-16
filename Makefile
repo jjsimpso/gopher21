@@ -20,6 +20,7 @@ corpus: gopher21
 
 clean:
 	rm -rf compiled/
-	rm -rf $(EXE)
+	rm -rf magic/compiled/
+	rm -f $(EXE)
 	rm -rf $(DIST_DIR)
 #	rm $(CORPUS) $(CORPUS_CACHE) 
