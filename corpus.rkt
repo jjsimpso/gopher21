@@ -44,7 +44,7 @@
   ht)
 
 ;; takes a file index and returns the absolute path to the file
-(define (search-tree-file-absolute-path file-index st)
+(define (search-tree-file-absolute-path st file-index)
   (build-path
    (search-tree-root-path st)
    (hash-ref (search-tree-files st) file-index)))
@@ -169,18 +169,44 @@
 
   ht)
 
+;; matches the quoted phrase exactly
+;; returns a hash table
+(define (lookup-phrase-raw st quoted-phrase)
+  (define phrase (string-trim quoted-phrase "\""))
+  (define query-list (string-split phrase))
+  ;; run an AND query on all the words in the phrase to limit number of
+  ;; files to search
+  (define and-results
+     (and-query
+      st 
+      (cdr query-list) 
+      (lookup-word-raw st (car query-list))))
+
+  (cond [(hash-empty? and-results) and-results]
+        [(= (length query-list) 1) and-results]
+        [else
+         (define phrase-bytes (string->bytes/utf-8 phrase))
+         (for ([(key value) (in-hash and-results)])
+           (define num-matches-in-file (search-file-faster (search-tree-file-absolute-path st key) phrase-bytes))
+           (if (= num-matches-in-file 0)
+               (hash-remove! and-results key)
+               (hash-set! and-results key num-matches-in-file)))
+         and-results]))
+
+(define (results-hash-to-list st ht)
+  (if ht
+      (hash-map ht
+                (lambda (key value)
+                  (cons (search-tree-file-absolute-path st key) value)))
+      empty))
+  
 ;; lookup the word in the trie
 ;; lookup-word-raw returns a hash table of results, using integer file indexes as keys
 ;; convert the hash table into a list of results, with the file index replaced with the file's path 
 ;; returns a list of (path . num-hits) or '() if no matches
 (define (lookup-word st word)
   (define ht (lookup-word-raw st word))
-
-  (if ht
-      (hash-map ht
-                (lambda (key value)
-                  (cons (search-tree-file-absolute-path key st) value)))
-      empty))
+  (results-hash-to-list st ht))
 
 ;; lookup-word returns a list of (key . value)
 ;; sort on the value
@@ -196,12 +222,7 @@
 ;; returns a list of (path . num-hits) or '() if no matches
 (define (lookup-word-plus-suffixes st word)
   (define ht (lookup-word-plus-suffixes-raw st word))
-  
-  (if ht
-      (hash-map ht
-                (lambda (key value)
-                  (cons (search-tree-file-absolute-path key st) value)))
-      empty))
+  (results-hash-to-list st ht))
 
 ;; matches the quoted phrase exactly
 ;; returns a list of (path . num-hits) or '() if no matches
@@ -210,11 +231,14 @@
   (define query-list (string-split phrase))
   ;; run an AND query on all the words in the phrase to limit number of
   ;; files to search
-  (define and-results 
-    (and-query st 
-               (cdr query-list) 
-               (lookup-word st (car query-list))))
-  
+  (define and-results
+    (results-hash-to-list
+     st
+     (and-query
+      st 
+      (cdr query-list) 
+      (lookup-word-raw st (car query-list)))))
+
   (cond [(empty? and-results) empty]
         [(= (length query-list) 1) and-results]
         [else
@@ -230,34 +254,33 @@
                 and-results)])
   )
 
-(define (get-query-func query)
-  (if (char=? query #\")
-      lookup-phrase
-      lookup-word-plus-suffixes))
+;; calculates the intersection of h0 and h1, returning a new hash table
+;; expects integer values and takes min value as new hash's value for each key
+(define (hash-intersect-matches h0 h1)
+  (define new-hash (make-hash))
 
-(define (and-query st query-list results)
-  (define (intersect-matches hit intersection)
-    (let ([prev-match (assoc (car hit) results)])
-      (if prev-match
-          ;; set the number of matches equal to the lowest found across all queries
-          (if (< (cdr hit) (cdr prev-match))
-              (cons hit intersection)
-              (cons prev-match intersection))
-          intersection)))
-  
+  (for ([(key value) (in-hash h0)])
+    (when (hash-has-key? h1 key)
+      (hash-set! new-hash key (min value (hash-ref h1 key)))))
+
+  new-hash)
+
+(define (get-query-func query)
+  (if (char=? (string-ref query 0) #\")
+      lookup-phrase-raw
+      lookup-word-plus-suffixes-raw))
+
+(define (and-query st query-list result-ht)
   (cond 
-    [(empty? query-list) results]
+    [(empty? query-list) result-ht]
     [else 
-     (let* ([query-func (get-query-func (string-ref (car query-list) 0))]
-            [matches (query-func st (car query-list))])
-       (if matches
+     (let* ([query-func (get-query-func (car query-list))]
+            [new-matches (query-func st (car query-list))])
+       (if new-matches
            (and-query st 
-                      (cdr query-list) 
-                      (foldl intersect-matches
-                             empty
-                             matches))
-           empty))]
-  ))
+                      (cdr query-list)
+                      (hash-intersect-matches result-ht new-matches))
+           (make-hash)))]))
 
 ;; split the query string, treating quoted queries as a single word
 (define (query-string-split query-string)
@@ -275,10 +298,13 @@
   ;; only do AND queries at the moment
   (define query-list (query-string-split query-string))
   ;; get the function to use for the initial query
-  (define query-func (get-query-func (string-ref (car query-list) 0)))
-  (define results (and-query st 
-                             (cdr query-list) 
-                             (query-func st (car query-list))))
+  (define query-func (get-query-func (car query-list)))
+  (define results
+    (results-hash-to-list
+     st
+     (and-query st 
+                (cdr query-list) 
+                (query-func st (car query-list)))))
 
   ;; probably shouldn't have to check for false here anymore
   (if (or (empty? results) (false? results))
