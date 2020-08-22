@@ -129,6 +129,21 @@
     (close-input-port in)
     (deserialize data)))
 
+;; search files in the hash table 'results-ht' for 'phrase'
+;; and destructively modify results-ht
+(define (search-and-prune-results! st results-ht phrase)
+  (define skip-table (make-skip-table-horspool phrase))
+  (define phrase-bytes (string->bytes/utf-8 phrase))
+  
+  (for ([(key value) (in-hash results-ht)])
+    (define num-matches-in-file
+      (search-file-horspool (search-tree-file-absolute-path st key)
+                            phrase-bytes
+                            skip-table))
+    (if (= num-matches-in-file 0)
+        (hash-remove! results-ht key)
+        (hash-set! results-ht key num-matches-in-file))))
+
 ;; retrieve a hash table of corpus matches for 'word' from the search tree
 ;; use force-copy to ensure that the hash table returned is a copy
 (define (lookup-word-raw st word #:force-copy [copy-flag #f])
@@ -185,12 +200,7 @@
   (cond [(hash-empty? and-results) and-results]
         [(= (length query-list) 1) and-results]
         [else
-         (define phrase-bytes (string->bytes/utf-8 phrase))
-         (for ([(key value) (in-hash and-results)])
-           (define num-matches-in-file (search-file-faster (search-tree-file-absolute-path st key) phrase-bytes))
-           (if (= num-matches-in-file 0)
-               (hash-remove! and-results key)
-               (hash-set! and-results key num-matches-in-file)))
+         (search-and-prune-results! st and-results phrase)
          and-results]))
 
 (define (results-hash-to-list st ht)
@@ -242,9 +252,14 @@
   (cond [(empty? and-results) empty]
         [(= (length query-list) 1) and-results]
         [else
+         (define skip-table (make-skip-table-horspool phrase))
+         (define phrase-bytes (string->bytes/utf-8 phrase))
+         
          (foldl (lambda (potential-file-match file-matches)
                   (let ([num-matches-in-file 
-                         (search-file-faster (car potential-file-match) (string->bytes/utf-8 phrase))])
+                         (search-file-horspool (car potential-file-match)
+                                               phrase-bytes
+                                               skip-table)])
                     (if (= num-matches-in-file 0)
                         file-matches
                         (cons (cons (car potential-file-match)

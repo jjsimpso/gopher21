@@ -6,7 +6,9 @@
 
 (provide search-file)
 (provide search-file-faster)
+(provide search-file-horspool)
 (provide search-files-horspool)
+(provide make-skip-table-horspool)
 
 ;;(define file-list (map (lambda (d) (cons d 0)) (directory-list "/opt/ess/gamefaqs-archive/ps2/final-fantasy-xii/" #:build? #t)))
 ;;(define file-list (map (lambda (dir) (map (lambda (d) (cons d 0)) (directory-list dir #:build? #t))) (directory-list "/opt/ess/gamefaqs-archive/genesis/" #:build? #t)))
