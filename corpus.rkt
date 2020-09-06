@@ -114,7 +114,7 @@
   (define files (search-tree-files st))
   
   (for ([p (in-directory path)]
-        [i 100000])
+        [i (in-naturals 0)])
     (unless (directory-exists? p)
       ; add each file's relative path to the search tree's list of files, using 'i' as the key
       (define relpath (find-relative-path path p))

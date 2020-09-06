@@ -6,7 +6,7 @@
 (require "corpus.rkt")
 (require "gopher.rkt")
 
-(define gopher21-version "0.5.1")
+(define gopher21-version "0.6.0")
 
 (define server-root (make-parameter "./"))
 (define server-port (make-parameter 70))
