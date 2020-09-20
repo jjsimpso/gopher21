@@ -9,10 +9,10 @@
 (provide trie-get-keys)
 (provide trie-get-sub-keys)
 
-(define-serializable-struct trie-node
+(struct trie-node
   ([value #:mutable]
-   [links #:mutable])) ; assoc list of trie-nodes
-  ;#:transparent)
+   [links #:mutable]) ; assoc list of trie-nodes
+  #:prefab)
 
 (define (trie-new)
   (trie-node #f '()))

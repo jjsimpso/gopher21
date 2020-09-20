@@ -28,12 +28,12 @@
 ;; the hash table stored at each node of the trie stores all the hits for that word in the corpus. the table 
 ;; has file indices for keys and the values are the number of matches for that node's word in the file
 
-(define-serializable-struct search-tree
+(struct search-tree
   ([files #:mutable] ; a hash table mapping integer keys to file names
    [trie #:mutable]  ; the root trie node
    [node-datastore-path #:mutable] ; false if all the trie's data is stored in memory
-   [root-path #:mutable])) ; root directory where text is located
-  ;#:transparent)
+   [root-path #:mutable]) ; root directory where text is located
+  #:prefab)
 
 (define (create-search-tree)
   (search-tree (make-hash) (trie-new) #f (string->path "/")))
@@ -347,22 +347,42 @@
 (define (corpus-get-keys st)
   (trie-get-keys (search-tree-trie st) #t))
 
-(define (save-corpus-fast st path)
+(define (save-corpus-old st path)
   (call-with-output-file path
-    (lambda (out) (s-exp->fasl (serialize st) out))))
-
-(define (load-corpus-fast path)
-  (call-with-input-file path
-    (lambda (in) (deserialize (fasl->s-exp in)))))
+    (lambda (out) (write (serialize st) out))))
 
 (define (save-corpus st path)
   (call-with-output-file path
-    (lambda (out) (write (serialize st) out))))
+    (lambda (out) (s-exp->fasl st out #:keep-mutable? #t))))
+
+(define (load-corpus-old corpus-file-path corpus-root-path)
+  (define st
+    (call-with-input-file corpus-file-path
+      (lambda (in) (deserialize (read in)))))
+
+  (set-search-tree-root-path! st corpus-root-path)
+  
+  ; Run the garbage collector twice to keep overall memory usage low.
+  ; The deserialize will allocate a lot of memory.
+  ; Twice is needed because the collector doesn't unmap pages unless
+  ; they were unused at the beginning of the previous collection.
+  (collect-garbage 'major)
+  (collect-garbage 'major)
+
+  (when (and st (search-tree-node-datastore-path st))
+    (unless (file-exists? (search-tree-node-datastore-path st))
+      ; if the datastore file doesn't exist, perhaps it was moved.
+      ; update the datastore path to the same directory as the search tree
+      (define-values (base name dir?) (split-path corpus-file-path))
+      (define-values (base2 name2 dir2?) (split-path (search-tree-node-datastore-path st)))
+      (when (file-exists? (build-path base name2))
+        (update-datastore-path! st (build-path base name2)))))
+  st)
 
 (define (load-corpus corpus-file-path corpus-root-path)
   (define st
     (call-with-input-file corpus-file-path
-      (lambda (in) (deserialize (read in)))))
+      (lambda (in) (fasl->s-exp in))))
 
   (set-search-tree-root-path! st corpus-root-path)
   
