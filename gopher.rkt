@@ -65,25 +65,33 @@
 
 (define (accept-and-handle-map listener)
   (define cust (make-custodian))
+  (define received-request? (box #f))
+  
   (parameterize ([current-custodian cust])
     (define-values (in out) (tcp-accept listener))
     (thread (lambda ()
-              (handle-map in out)
+              (handle-map in out received-request?)
               (close-input-port in)
               (close-output-port out))))
-  ;; watcher thread
+  ;; watcher thread: kill handler thread if we don't receive a valid request in 10 seconds
   (thread (lambda ()
             (sleep 10)
-            (custodian-shutdown-all cust))))
+            (unless (unbox received-request?)
+              (log-gopher-info "Watcher thread shutting down tcp connection")
+              (custodian-shutdown-all cust)))))
 
 ;; handle a gopher request
-(define (handle-map in out)
+(define (handle-map in out rr-box)
   (define-values (hostip port-no dip dport) (tcp-addresses in #t))
 
   (log-gopher-info "handling connection from ~a" dip)
+  ;(printf "handling connection from ~a~n" dip)
   
   ;; read-line reads up to the first CRLF but doesn't include it in the returned string
   (define request (read-line in 'return-linefeed))
+  ;; set parameter to indicate we received a request. prevents watcher thread from killing us.
+  (set-box! rr-box #t)
+  
   (if (eof-object? request)
       (send-error "Resource not found" out)
       (let* ([selector (parse-request-selector request)]
