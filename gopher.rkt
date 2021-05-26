@@ -406,10 +406,11 @@
   (display "\r\n" out))
 
 (define (send-file path out)
-  (define in-file (open-input-file path))
-  (if in-file
-      (copy-port in-file out) ; should it send a the last line "." as well?
-      (send-error "Error reading file" out)))
+  (call-with-input-file path
+    (lambda (in)
+      (if in
+          (copy-port in out) ; should it send a last line of "." as well?
+          (send-error "Error reading file" out)))))
 
 (struct resource
   (type
