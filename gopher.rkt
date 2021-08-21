@@ -272,21 +272,30 @@
   (define extension (filename-extension path))
 
   (cond [(directory-exists? path) "1"]
+        ; check for text extensions first since this covers the majority of gopher
+        ; files. prevents having to run magic for every single text file.
+        [(and extension
+              (or (bytes=? extension #"txt")
+                  (bytes=? extension #"TXT")
+                  (bytes=? extension #"conf")
+                  (bytes=? extension #"CONF")
+                  (bytes=? extension #"cfg")
+                  (bytes=? extension #"CFG")
+                  (bytes=? extension #"sh")
+                  (bytes=? extension #"bat")
+                  (bytes=? extension #"BAT")
+                  (bytes=? extension #"ini")
+                  (bytes=? extension #"INI"))) "0"]
         [(with-input-from-file path image-query) "I"]
         [(with-input-from-file path gif-query) "g"]
         [(with-input-from-file path html-query) "h"]
         [(is-utf8-text? path) "0"]
         [extension
-         (cond [(or (bytes=? extension #"txt")
-                    (bytes=? extension #"conf")
-                    (bytes=? extension #"cfg")
-                    (bytes=? extension #"sh")
-                    (bytes=? extension #"bat")
-                    (bytes=? extension #"ini"))"0"]
-               [(or (bytes=? extension #"wav")
-                    (bytes=? extension #"ogg")
-                    (bytes=? extension #"mp3")) "s"]
-               [else "9"])]
+         (cond
+           [(or (bytes=? extension #"wav")
+                (bytes=? extension #"ogg")
+                (bytes=? extension #"mp3")) "s"]
+           [else "9"])]
         [else "9"]))
 
 (define (send-dir path hostname port-no out)
