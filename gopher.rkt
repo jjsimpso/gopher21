@@ -165,26 +165,31 @@
   (send-line "i" desc "fake" "fake.host" 0 out))
 
 (define (send-map-resource-line line map-dir-path hostname port-no out)
-  (define fields (string-split line "\t"))
-  (define num-fields (length fields))
-
-  (define type-char (string-ref line 0))
-  (define name (substring (first fields) 1))
-  (define selector (if (>= num-fields 2)
-                       (second fields)
-                       name))
-  (define host (if (>= num-fields 3)
-                   (third fields)
-                   hostname))
-  (define port (if (>= num-fields 4)
-                   (fourth fields)
-                   port-no))
-
-  ;(printf "gophermap selector=~a, path=~a~n" selector map-dir-path)
-
-  (if (>= num-fields 1)
-      (send-line type-char name (build-map-selector selector map-dir-path (root-dir-path)) host port out)
-      (send-error-line "Malformed element")))
+  (with-handlers
+    ([exn:fail?
+      (lambda (exn)
+        (send-error-line "Malformed directory entry" out))])
+    
+    (define fields (string-split line "\t"))
+    (define num-fields (length fields))
+    
+    (define type-char (string-ref line 0))
+    (define name (substring (first fields) 1))
+    (define selector (if (>= num-fields 2)
+                         (second fields)
+                         name))
+    (define host (if (>= num-fields 3)
+                     (third fields)
+                     hostname))
+    (define port (if (>= num-fields 4)
+                     (fourth fields)
+                     port-no))
+    
+    ;(printf "gophermap selector=~a, path=~a~n" selector map-dir-path)
+    
+    (if (>= num-fields 1)
+        (send-line type-char name (build-map-selector selector map-dir-path (root-dir-path)) host port out)
+        (send-error-line "Malformed directory entry" out))))
 
 ;; takes a selector from a gophermap file and processes it
 ;; will turn relative paths in the gophermap to full paths from the server root
