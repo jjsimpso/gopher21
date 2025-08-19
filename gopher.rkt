@@ -113,7 +113,8 @@
         (cond 
           [(pair? resource) (handle-search-request resource (get-hostname-or-ip hostip) port-no out)]
           [(not (path-is-subdir? resource (root-dir-path))) (send-error "Resource not found" out)]
-          [(file-exists? resource) (send-file resource out)]
+          [(and (file-exists? resource) (not (gophermap? resource)))
+           (send-file resource out)]
           [(directory-exists? resource) (send-map resource (get-hostname-or-ip hostip) port-no out)] 
           [else (send-error "Resource not found" out)]))))
 

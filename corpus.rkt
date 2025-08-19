@@ -20,7 +20,7 @@
 (provide query-corpus)
 (provide query-corpus-multi)
 (provide update-datastore-path!)
-
+(provide gophermap?)
 
 ;; search-tree is implemented as a trie with a hash table as the value of each node
 ;; each word in the corpus is a key in the trie
@@ -110,12 +110,18 @@
 
   (insert-words (file->word-list path) file-index (search-tree-trie st)))
 
+(define (gophermap? p)
+  (define file-name (path->string (file-name-from-path p)))
+  (or (string=? file-name "gophermap")
+      (string=? file-name "gophermap~")))
+
 (define (add-directory-to-search-tree path st)
   (define files (search-tree-files st))
   
   (for ([p (in-directory path)]
         [i (in-naturals 0)])
-    (unless (directory-exists? p)
+    (unless (or (directory-exists? p)
+                (gophermap? p))
       ; add each file's relative path to the search tree's list of files, using 'i' as the key
       (define relpath (find-relative-path path p))
       (hash-set! files i relpath)
