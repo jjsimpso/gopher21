@@ -170,7 +170,7 @@
       (lambda (exn)
         (send-error-line "Malformed directory entry" out))])
     
-    (define fields (string-split line "\t"))
+    (define fields (string-split line "\t" #:repeat? #f))
     (define num-fields (length fields))
     
     (define type-char (string-ref line 0))
@@ -194,7 +194,8 @@
 ;; takes a selector from a gophermap file and processes it
 ;; will turn relative paths in the gophermap to full paths from the server root
 (define (build-map-selector selector base-dir server-root-dir)
-  (cond [(absolute-path? selector) selector]
+  (cond [(= (string-length selector) 0) ""]
+        [(absolute-path? selector) selector]
         [(or (string-prefix? selector "URL:")
              (string-prefix? selector "SEARCH:")
              (string-prefix? selector "GET ")) selector]
