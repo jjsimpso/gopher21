@@ -96,6 +96,7 @@
 
 ;; file-index is an index to the search tree's file list
 (define (add-file-to-search-tree path file-index st)
+  (printf "adding ~a~n" path)
   (define (insert-words words file-index trie)
     (cond
       [(empty? words) trie]
@@ -138,6 +139,7 @@
 ;; search files in the hash table 'results-ht' for 'phrase'
 ;; and destructively modify results-ht
 (define (search-and-prune-results! st results-ht phrase)
+  ;(printf "search-and-prune-results! ~a~n" phrase)
   (define skip-table (make-skip-table-horspool phrase))
   (define phrase-bytes (string->bytes/utf-8 phrase))
   
@@ -320,6 +322,7 @@
   (define query-list (query-string-split query-string))
   ;; get the function to use for the initial query
   (define query-func (get-query-func (car query-list)))
+  ;(printf "query-corpus: ~a -> ~a : ~a~n" query-string query-list query-func)
   (define results
     (results-hash-to-list
      st
