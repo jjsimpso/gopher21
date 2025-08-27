@@ -306,13 +306,17 @@
         [else "9"]))
 
 (define (send-dir path hostname port-no out)
+  (define data-sent? #f)
   (for ([f (directory-list path)])
     (define file-path (build-path path f))
+    (set! data-sent? #t)
     (send-line (filetype file-path) 
                (path->string f) 
                ; build an absolute path from the server root to the file
                (string-append "/" (path->string (find-relative-path (root-dir-path) file-path)))
-               hostname port-no out)))
+               hostname port-no out))
+  (unless data-sent?
+    (send-line "i" "Sorry! Nothing here!" "fake" "(NULL)" 0 out)))
 
 (define (string-prefix? s prefix)
   (regexp-match? (string-append "^" prefix) s))
